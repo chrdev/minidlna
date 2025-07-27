@@ -75,6 +75,7 @@ enum client_types {
 	ESamsungSeriesQ,
 	ESamsungSeriesCDE,
 	ESamsungBDJ5500,
+	ESonos,
 	ESonyBDP,
 	ESonyBravia,
 	ESonyInternetTV,

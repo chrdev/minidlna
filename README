@@ -1,3 +1,45 @@
+MiniDLNA with sonos support
+
+## Usage
+
+Set minidlna port to 10243. In sonos app, turn on "System -> Media Servers -> Show Media Servers".
+
+This fork doesn't affect other already supported devices.
+
+Tip 1: Sonos S2 dropped DLNA functionality, so use S1.
+
+Tip 2: There is a "Show UPnP servers" in the sonos app, it doesn't matter.
+
+#### Album art
+
+The original minidlna serves 160x160 album arts. It's blurry on Sonos App. So this fork sends raw art files to sonos. Arts are searched in this order:
+
+1. audiofilename.ext.cover.jpg
+
+2. audiofilename.jpg
+
+3. file names specified by album_art_names - minidlna.conf.
+
+960x960 is recommended for optimal visuals, and 480x480 for limited bandwidth.
+
+As a protective measure, art file size can not exceed 512KB.
+
+## Development
+
+Sonos support only a limited number of DLNA servers, namely Windows Media Player and reportedly a few other proprietary software.
+
+So we can mimic Windows Media Player.
+
+1. Model name must be "Windows Media Player Sharing", model number be "12.0". Then the server is listed and browsable.
+
+2. Port number must be 10243. This is the port that "Windows Media Player Network Sharing Service" uses. Actually, description, control and event can use any port, but media files must use 10243.
+
+3. Media files must reside in /WMPNSSv4/ so that sonos will request for arts. The requsting syntax is "/WMPNSSv4/.../audiofile.ext?albumArt=true".
+
+4. Metadata in SOAP: album artist is 'upnp:artist role="AlbumArtist"', track artist is 'upnp:artist role="Performer"'. See upnpsoap.c for details.
+
+## Original README:
+
 MiniDLNA project
 (c) 2009 Justin Maggard
 Portions (c) 2006-2007 Thomas Bernard

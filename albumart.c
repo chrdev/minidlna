@@ -161,7 +161,7 @@ update_if_album_art(const char *path)
 	closedir(dh);
 }
 
-char *
+static char *
 check_embedded_art(const char *path, uint8_t *image_data, int image_size)
 {
 	int width = 0, height = 0;
@@ -367,4 +367,100 @@ find_album_art(const char *path, uint8_t *image_data, int image_size)
 	free(album_art);
 
 	return ret;
+}
+
+static int
+prep_read(const char* path, off_t* off, off_t* end_off)
+{
+	enum { kSizeLimit = 512 * 1024 }; // Is 512K a good choice?
+	int fd;
+	off_t size;
+
+	fd = open(path, O_RDONLY);
+	if( fd <= 0 )
+		return 0;
+
+	size = lseek(fd, 0, SEEK_END);
+	lseek(fd, 0, SEEK_SET);
+	if( size == 0) {
+		DPRINTF(E_WARN, L_METADATA, "Empty album art file %s\n", path);
+		goto error;
+	}
+	else if( size > kSizeLimit ) {
+		DPRINTF(E_WARN, L_METADATA, "Album art size exceeds limit of %d: size %ld, file %s\n", kSizeLimit, size, path);
+		goto error;
+	}
+
+	*off = 0;
+	*end_off = size - 1;
+	return fd;
+
+error:
+	close(fd);
+	return 0;
+}
+
+/*	Try to open raw album art in this order:
+//	1. filename.ext.cover.jpg
+//	2. filename.jpg
+//	3. embedded art (not implemented)
+//	4. folder art file according to conf file album_art_names
+*/
+int
+find_album_art_raw(const char *path, off_t* offset, off_t* end_offset)
+{
+	static const char kCoverDotJpg[] = ".cover.jpg";
+	static const char kJpg[] = "jpg";
+
+	char file[MAXPATHLEN];
+	int len;
+	int fd;
+	char* p;
+	int capacity;
+	struct album_art_name_s *aan;
+
+	len = strlen(path);
+	capacity = sizeof(file) - len;
+	if( capacity >= sizeof(kCoverDotJpg) )
+	{
+		memcpy(file, path, len);
+		memcpy(file + len, kCoverDotJpg, sizeof(kCoverDotJpg));
+		fd = prep_read(file, offset, end_offset);
+		if( fd ) return fd;
+	}
+
+	file[len] = '\0';
+	if( (p = strrchr(file, '.')) )
+	{
+		++p;
+		capacity = sizeof(file) - (p - file);
+		if( capacity >= sizeof(kJpg) )
+		{
+			memcpy(p, kJpg, sizeof(kJpg));
+			fd = prep_read(file, offset, end_offset);
+			if( fd )
+				return fd;
+		}
+	}
+
+	/*
+	If we want to load raw embedded art, we'd do it here.
+	But for now we do nothing but leave it to minidlna to send cached art
+	 */
+
+	if( !(p = strrchr(file, '/')) )
+		return 0;
+	++p;
+	capacity = sizeof(file) - (p - file);
+	for( aan = album_art_names; aan; aan = aan->next )
+	{
+		len = strlen(aan->name);
+		if( capacity <= len )
+			continue;
+		memcpy(p, aan->name, len + 1);
+		fd = prep_read(file, offset, end_offset);
+		if( fd )
+			return fd;
+	}
+	return 0;
 }
