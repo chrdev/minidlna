@@ -8,10 +8,37 @@ jobs:
     name: Build Linux x64
     runs-on: ubuntu-latest
     steps:
+      - name: Install prerequisites
+        run: |
+          sudo apt -y install git autoconf automake binutils make gcc autopoint gettext
+          sudo apt -y install libavutil-dev libavcodec-dev libavformat-dev libjpeg-dev libsqlite3-dev libexif-dev libid3tag0-dev libogg-dev libvorbis-dev libflac-dev
       - name: Checkout
         uses: actions/checkout@v4
       - name: Build
         run: |
-          pwd
-          echo ${{ github.repository }}
-          
+          ./autogen.sh
+          ./configure --enable-lto
+          make -j 1
+          strip -p -s minidlnad
+      - name: Set release variables
+        run: |
+          set -xe
+          RELDATE=$(date --rfc-3339=date)
+          RELFN="minidlnad-ubuntu-x64-${RELDATE}.tar.xz"
+          RELTITLE="Auto-Build ${RELDATE}"
+          RELTAG="autobuild-${RELDATE}"
+          echo RELDATE="${RELDATE}" >> $GITHUB_ENV
+          echo RELFN="${RELFN}" >> $GITHUB_ENV
+          echo RELTITLE="${RELTITLE}" >> $GITHUB_ENV
+          echo RELTAG="${RELTAG}" >> $GITHUB_ENV
+      - name: Package
+        run: |
+          set -xe
+          tar -ca --numeric-owner --owner=0 --group=0 -f "${{ env.RELFN }}" minidlnad
+      - name: Release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -xe
+          gh release create "${{ env.RELTAG }}" --target 'master' --title "${{ env.RELTITLE }}" "${{ env.RELFN }}"
+          echo "release_tag=${{ env.RELTAG }}" >> $GITHUB_OUTPUT
