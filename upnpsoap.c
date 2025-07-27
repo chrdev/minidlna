@@ -484,7 +484,8 @@ set_filter_flags(char *filter, struct upnphttp *h)
 			flags |= FILTER_UPNP_ALBUMARTURI;
 			flags |= FILTER_UPNP_ALBUMARTURI_DLNA_PROFILEID;
 		}
-		else if( strcmp(item, "upnp:artist") == 0 )
+		else if( (strcmp(item, "upnp:artist") == 0) ||
+				 (strcmp(item, "upnp:artist@role") == 0) )
 		{
 			flags |= FILTER_UPNP_ARTIST;
 		}
@@ -796,11 +797,12 @@ add_res(char *size, char *duration, char *bitrate, char *sampleFrequency,
 					lan_addr[args->iface].str, runtime_vars.port, detailID);
 		}
 	}
+	const char* itemRoot = args->client == ESonos ? "WMPNSSv4" : "MediaItems";
 	strcatf(args->str, "protocolInfo=\"http-get:*:%s:%s\"&gt;"
-	                          "http://%s:%d/MediaItems/%s.%s"
+	                          "http://%s:%d/%s/%s.%s"
 	                          "&lt;/res&gt;",
 	                          mime, dlna_pn, lan_addr[args->iface].str,
-	                          runtime_vars.port, detailID, ext);
+	                          runtime_vars.port, itemRoot, detailID, ext);
 }
 
 static int
@@ -1048,7 +1050,11 @@ callback(void *args, int argc, char **argv, char **azColName)
 			}
 		}
 		free(alt_title);
-		if( artist ) {
+		if ( passed_args->client == ESonos && (passed_args->filter & FILTER_UPNP_ARTIST) ) {
+			ret = strcatf(str, "&lt;upnp:artist role=\"AlbumArtist\"&gt;%s&lt;/upnp:artist&gt;", artist ? artist : "[Unknown Artist]");
+			ret = strcatf(str, "&lt;upnp:artist role=\"Performer\"&gt;%s&lt;/upnp:artist&gt;", artist ? artist : "[Unknown Author]");
+		}
+		else if( artist ) {
 			if( (*mime == 'v') && (passed_args->filter & FILTER_UPNP_ACTOR) ) {
 				ret = strcatf(str, "&lt;upnp:actor&gt;%s&lt;/upnp:actor&gt;", artist);
 			}
@@ -1056,7 +1062,10 @@ callback(void *args, int argc, char **argv, char **azColName)
 				ret = strcatf(str, "&lt;upnp:artist&gt;%s&lt;/upnp:artist&gt;", artist);
 			}
 		}
-		if( album && (passed_args->filter & FILTER_UPNP_ALBUM) ) {
+		if( passed_args->client == ESonos && (passed_args->filter & FILTER_UPNP_ALBUM) ) {
+			ret = strcatf(str, "&lt;upnp:album&gt;%s&lt;/upnp:album&gt;", album ? album : "[Unknown Album]");
+		}
+		else if( album && (passed_args->filter & FILTER_UPNP_ALBUM) ) {
 			ret = strcatf(str, "&lt;upnp:album&gt;%s&lt;/upnp:album&gt;", album);
 		}
 		if( genre && (passed_args->filter & FILTER_UPNP_GENRE) ) {

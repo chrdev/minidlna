@@ -27,4 +27,7 @@
 void update_if_album_art(const char *path);
 int64_t find_album_art(const char *path, uint8_t *image_data, int image_size);
 
+/* Returns fd. If no accessible album art, retruns 0 */
+int find_album_art_raw(const char *path, off_t* offset, off_t* end_offset);
+
 #endif

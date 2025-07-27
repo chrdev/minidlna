@@ -4,8 +4,10 @@ Makefile.in
 Makefile
 aclocal.m4
 autom4te.cache/
+compile
 config.guess
 config.h.in
+config.h.in~
 config.rpath
 config.sub
 config.status
@@ -14,6 +16,7 @@ config.h
 confdefs.h
 conftest.*
 configure
+configure~
 depcomp
 install-sh
 m4/
@@ -25,8 +28,10 @@ po/Rules-quot
 po/boldquot.sed
 po/en@boldquot.header
 po/en@quot.header
+po/insert-header.sed
 po/insert-header.sin
 po/quot.sed
+po/remove-potcdate.sed
 po/remove-potcdate.sin
 po/Makefile
 po/POTFILES
@@ -35,3 +40,6 @@ po/stamp-po
 stamp-h1
 .deps/
 *.o
+linux/minidlna.init.d.script
+minidlnad
+tagutils/.dirstamp

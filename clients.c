@@ -194,6 +194,14 @@ struct client_type_s client_types[] =
 	  EUserAgent
 	},
 
+	/* USER-AGENT: Linux UPnP/1.0 Sonos/VV.V-vvvvv (XXXNN) */
+	{ ESonos,
+	  FLAG_MS_PFS | FLAG_AUDIO_ONLY | FLAG_MIME_FLAC_FLAC | FLAG_MIME_WAV_WAV,
+	  "Sonos",
+	  "Sonos",
+	  EUserAgent
+	},
+
 	/* X-AV-Client-Info: av=5.0; cn="Sony Corporation"; mn="BRAVIA KDL-40EX503"; mv="1.7"; */
 	{ ESonyBravia,
 	  FLAG_DLNA,

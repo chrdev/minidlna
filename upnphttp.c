@@ -82,6 +82,7 @@
 #include "clients.h"
 #include "process.h"
 #include "sendfile.h"
+#include "albumart.h"
 
 #define MAX_BUFFER_SIZE 2147483647
 #define MIN_BUFFER_SIZE 65536
@@ -98,6 +99,7 @@ enum event_type {
 
 static void SendResp_icon(struct upnphttp *, char * url);
 static void SendResp_albumArt(struct upnphttp *, char * url);
+static int SendResp_albumArtRaw(struct upnphttp *, long long id);
 static void SendResp_caption(struct upnphttp *, char * url);
 static void SendResp_resizedimg(struct upnphttp *, char * url);
 static void SendResp_thumbnail(struct upnphttp *, char * url);
@@ -989,6 +991,19 @@ ProcessHttpQuery_upnphttp(struct upnphttp * h)
 					friendly_name[i] = '\0';
 				memcpy(modelnumber, model_sav, 2);
 			}
+			/* For Sonos, we mimic Windows Media Player Sharing to be listed */
+			else if ( h->req_client && h->req_client->type->type == ESonos )
+			{
+				static const char kName[] = "Windows Media Player Sharing";
+				static const char kNum[] = "12.0";
+				char name[MODELNAME_MAX_LEN], num[MODELNUMBER_MAX_LEN];
+				memcpy(name, modelname, sizeof(name)); memcpy(num, modelnumber, sizeof(num));
+				memcpy(modelname, kName, sizeof(kName)); memcpy(modelnumber, kNum, sizeof(kNum));
+				sendXMLdesc(h, genRootDesc);
+				memcpy(modelname, name, sizeof(name)); memcpy(modelnumber, num, sizeof(num));
+				if( runtime_vars.port != 10243)
+					DPRINTF(E_WARN, L_HTTP, "For Sonos to work, use port 10243, current port %d\n", runtime_vars.port);
+			}
 			else if( h->req_client && h->req_client->type->flags & FLAG_SAMSUNG_DCM10 )
 			{
 				sendXMLdesc(h, genRootDescSamsung);
@@ -1013,6 +1028,9 @@ ProcessHttpQuery_upnphttp(struct upnphttp * h)
 		else if(strncmp(HttpUrl, "/MediaItems/", 12) == 0)
 		{
 			SendResp_dlnafile(h, HttpUrl+12);
+		}
+		else if(strncmp(HttpUrl, "/WMPNSSv4/", 10) == 0) { // we set this path for Sonos at upnpsoap.c
+			SendResp_dlnafile(h, HttpUrl+10);
 		}
 		else if(strncmp(HttpUrl, "/Thumbnails/", 12) == 0)
 		{
@@ -1551,6 +1569,46 @@ SendResp_albumArt(struct upnphttp * h, char * object)
 	CloseSocket_upnphttp(h);
 }
 
+/*	If successfully sent raw album art, return 1.
+//	If nothing sent, return 0. Caller may take further actions.
+*/
+static int
+SendResp_albumArtRaw(struct upnphttp* h, long long id)
+{
+	char header[512];
+	char *path;
+	int fd;
+	off_t off, end_off;
+	struct string_s str;
+
+	if( h->reqflags & (FLAG_XFERSTREAMING|FLAG_RANGE) )
+		return 0;
+
+	path = sql_get_text_field(db, "SELECT PATH from DETAILS where ID = '%lld'", id);
+	if( !path )
+		return 0;
+	DPRINTF(E_INFO, L_HTTP, "Serving album art for ID: %lld [%s]\n", id, path);
+	fd = find_album_art_raw(path, &off, &end_off);
+	sqlite3_free(path);
+	if (!fd)
+		return 0;
+
+	INIT_STR(str, header);
+	start_dlna_header(&str, 200, "Interactive", "image/jpeg");
+	strcatf(&str, "Content-Length: %jd\r\n"
+	              "contentFeatures.dlna.org: DLNA.ORG_PN=JPEG_TN\r\n\r\n",
+	              (intmax_t)(end_off - off + 1));
+
+	if( send_data(h, str.data, str.off, MSG_MORE) == 0 )
+	{
+		if( h->req_command != EHead )
+			send_file(h, fd, off, end_off);
+	}
+	close(fd);
+	CloseSocket_upnphttp(h);
+	return 1;
+}
+
 static void
 SendResp_caption(struct upnphttp * h, char * object)
 {
@@ -1925,9 +1983,13 @@ SendResp_dlnafile(struct upnphttp *h, char *object)
 	{
 		if( strstr(object, "?albumArt=true") )
 		{
+			if( h->req_client->type->type == ESonos ) {
+				if( SendResp_albumArtRaw(h, id) )
+					return;
+			}
 			char *art;
 			art = sql_get_text_field(db, "SELECT ALBUM_ART from DETAILS where ID = '%lld'", id);
-			if (art)
+			if( art )
 			{
 				SendResp_albumArt(h, art);
 				sqlite3_free(art);
